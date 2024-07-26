@@ -18,8 +18,9 @@ Callbacks to use with the Trainer class and customize the training loop.
 
 import dataclasses
 import json
+import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import numpy as np
 from tqdm.auto import tqdm
@@ -27,6 +28,10 @@ from tqdm.auto import tqdm
 from .trainer_utils import IntervalStrategy, has_length
 from .training_args import TrainingArguments
 from .utils import logging
+from . import PreTrainedModel
+from torch.utils.data.sampler import SequentialSampler
+from torch.utils.data import BatchSampler
+import torch
 
 
 logger = logging.get_logger(__name__)
@@ -138,7 +143,9 @@ class TrainerState:
 
     def save_to_json(self, json_path: str):
         """Save the content of this instance in JSON format inside `json_path`."""
-        json_string = json.dumps(dataclasses.asdict(self), indent=2, sort_keys=True) + "\n"
+        json_string = (
+            json.dumps(dataclasses.asdict(self), indent=2, sort_keys=True) + "\n"
+        )
         with open(json_path, "w", encoding="utf-8") as f:
             f.write(json_string)
 
@@ -184,7 +191,9 @@ class ExportableState:
     ```"""
 
     def state(self) -> dict:
-        raise NotImplementedError("You must implement a `state` function to utilize this class.")
+        raise NotImplementedError(
+            "You must implement a `state` function to utilize this class."
+        )
 
     @classmethod
     def from_state(cls, state):
@@ -307,87 +316,172 @@ class TrainerCallback:
                 print(logs)
     ```"""
 
-    def on_init_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_init_end(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called at the end of the initialization of the [`Trainer`].
         """
         pass
 
-    def on_train_begin(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_train_begin(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called at the beginning of training.
         """
         pass
 
-    def on_train_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_train_end(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called at the end of training.
         """
         pass
 
-    def on_epoch_begin(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_epoch_begin(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called at the beginning of an epoch.
         """
         pass
 
-    def on_epoch_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_epoch_end(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called at the end of an epoch.
         """
         pass
 
-    def on_step_begin(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_step_begin(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called at the beginning of a training step. If using gradient accumulation, one training step might take
         several inputs.
         """
         pass
 
-    def on_optimizer_step(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_optimizer_step(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called after the optimizer step but before gradients are zeroed out. Useful for monitoring gradients.
         """
         pass
 
-    def on_substep_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_substep_end(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called at the end of an substep during gradient accumulation.
         """
         pass
 
-    def on_step_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_step_end(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called at the end of a training step. If using gradient accumulation, one training step might take
         several inputs.
         """
         pass
 
-    def on_evaluate(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_evaluate(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called after an evaluation phase.
         """
         pass
 
-    def on_predict(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, metrics, **kwargs):
+    def on_predict(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        metrics,
+        **kwargs,
+    ):
         """
         Event called after a successful prediction.
         """
         pass
 
-    def on_save(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_save(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called after a checkpoint save.
         """
         pass
 
-    def on_log(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_log(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called after logging the last logs.
         """
         pass
 
-    def on_prediction_step(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_prediction_step(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         """
         Event called after a prediction step.
         """
@@ -452,54 +546,94 @@ class CallbackHandler(TrainerCallback):
     def callback_list(self):
         return "\n".join(cb.__class__.__name__ for cb in self.callbacks)
 
-    def on_init_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl):
+    def on_init_end(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl
+    ):
         return self.call_event("on_init_end", args, state, control)
 
-    def on_train_begin(self, args: TrainingArguments, state: TrainerState, control: TrainerControl):
+    def on_train_begin(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl
+    ):
         control.should_training_stop = False
         return self.call_event("on_train_begin", args, state, control)
 
-    def on_train_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl):
+    def on_train_end(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl
+    ):
         return self.call_event("on_train_end", args, state, control)
 
-    def on_epoch_begin(self, args: TrainingArguments, state: TrainerState, control: TrainerControl):
+    def on_epoch_begin(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl
+    ):
         control.should_epoch_stop = False
         return self.call_event("on_epoch_begin", args, state, control)
 
-    def on_epoch_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl):
+    def on_epoch_end(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl
+    ):
         return self.call_event("on_epoch_end", args, state, control)
 
-    def on_step_begin(self, args: TrainingArguments, state: TrainerState, control: TrainerControl):
+    def on_step_begin(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl
+    ):
         control.should_log = False
         control.should_evaluate = False
         control.should_save = False
         return self.call_event("on_step_begin", args, state, control)
 
-    def on_optimizer_step(self, args: TrainingArguments, state: TrainerState, control: TrainerControl):
+    def on_optimizer_step(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl
+    ):
         return self.call_event("on_optimizer_step", args, state, control)
 
-    def on_substep_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl):
+    def on_substep_end(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl
+    ):
         return self.call_event("on_substep_end", args, state, control)
 
-    def on_step_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl):
+    def on_step_end(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl
+    ):
         return self.call_event("on_step_end", args, state, control)
 
-    def on_evaluate(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, metrics):
+    def on_evaluate(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        metrics,
+    ):
         control.should_evaluate = False
         return self.call_event("on_evaluate", args, state, control, metrics=metrics)
 
-    def on_predict(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, metrics):
+    def on_predict(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        metrics,
+    ):
         return self.call_event("on_predict", args, state, control, metrics=metrics)
 
-    def on_save(self, args: TrainingArguments, state: TrainerState, control: TrainerControl):
+    def on_save(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl
+    ):
         control.should_save = False
         return self.call_event("on_save", args, state, control)
 
-    def on_log(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, logs):
+    def on_log(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        logs,
+    ):
         control.should_log = False
         return self.call_event("on_log", args, state, control, logs=logs)
 
-    def on_prediction_step(self, args: TrainingArguments, state: TrainerState, control: TrainerControl):
+    def on_prediction_step(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl
+    ):
         return self.call_event("on_prediction_step", args, state, control)
 
     def call_event(self, event, args, state, control, **kwargs):
@@ -527,11 +661,20 @@ class DefaultFlowCallback(TrainerCallback):
     A [`TrainerCallback`] that handles the default flow of the training loop for logs, evaluation and checkpoints.
     """
 
-    def on_step_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_step_end(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         # Log
         if state.global_step == 1 and args.logging_first_step:
             control.should_log = True
-        if args.logging_strategy == IntervalStrategy.STEPS and state.global_step % state.logging_steps == 0:
+        if (
+            args.logging_strategy == IntervalStrategy.STEPS
+            and state.global_step % state.logging_steps == 0
+        ):
             control.should_log = True
 
         # Evaluate
@@ -559,13 +702,22 @@ class DefaultFlowCallback(TrainerCallback):
 
         return control
 
-    def on_epoch_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+    def on_epoch_end(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
         # Log
         if args.logging_strategy == IntervalStrategy.EPOCH:
             control.should_log = True
 
         # Evaluate
-        if args.eval_strategy == IntervalStrategy.EPOCH and args.eval_delay <= state.epoch:
+        if (
+            args.eval_strategy == IntervalStrategy.EPOCH
+            and args.eval_delay <= state.epoch
+        ):
             control.should_evaluate = True
 
         # Save
@@ -598,7 +750,9 @@ class ProgressCallback(TrainerCallback):
         if state.is_world_process_zero and has_length(eval_dataloader):
             if self.prediction_bar is None:
                 self.prediction_bar = tqdm(
-                    total=len(eval_dataloader), leave=self.training_bar is None, dynamic_ncols=True
+                    total=len(eval_dataloader),
+                    leave=self.training_bar is None,
+                    dynamic_ncols=True,
                 )
             self.prediction_bar.update(1)
 
@@ -661,7 +815,11 @@ class EarlyStoppingCallback(TrainerCallback, ExportableState):
     early stopping will not occur until the next save step.
     """
 
-    def __init__(self, early_stopping_patience: int = 1, early_stopping_threshold: Optional[float] = 0.0):
+    def __init__(
+        self,
+        early_stopping_patience: int = 1,
+        early_stopping_threshold: Optional[float] = 0.0,
+    ):
         self.early_stopping_patience = early_stopping_patience
         self.early_stopping_threshold = early_stopping_threshold
         # early_stopping_patience_counter denotes the number of times validation metrics failed to improve.
@@ -679,7 +837,9 @@ class EarlyStoppingCallback(TrainerCallback, ExportableState):
             self.early_stopping_patience_counter += 1
 
     def on_train_begin(self, args, state, control, **kwargs):
-        assert args.load_best_model_at_end, "EarlyStoppingCallback requires load_best_model_at_end = True"
+        assert (
+            args.load_best_model_at_end
+        ), "EarlyStoppingCallback requires load_best_model_at_end = True"
         assert (
             args.metric_for_best_model is not None
         ), "EarlyStoppingCallback requires metric_for_best_model is defined"
@@ -714,3 +874,113 @@ class EarlyStoppingCallback(TrainerCallback, ExportableState):
                 "early_stopping_patience_counter": self.early_stopping_patience_counter,
             },
         }
+
+
+class DataMapCallback(TrainerCallback):
+    """Trainer Callback to save DataMap data.
+
+    Original Paper: https://arxiv.org/pdf/2009.10795.pdf.
+
+    This callback saves the predictions of the model on each training example
+    at the end of every epoch to callback_dir/{epoch}.json.
+    """
+
+    def __init__(
+        self,
+        log_on: str = "epoch",
+        callback_dir: str = ".",
+        n_log_steps: Optional[int] = None,
+        prediction_fn: Optional[
+            Callable[
+                [PreTrainedModel, torch.utils.data.DataLoader, TrainingArguments],
+                List[List[float]],
+            ]
+        ] = None,
+    ):
+        self.callback_dir = callback_dir
+        self.log_on = log_on
+        self.log_count = 0
+        self.n_log_steps = n_log_steps
+        self.prediction_fn = self._predict if prediction_fn is None else prediction_fn
+
+        # Handle discrepencies in how we initialize the logging mode.
+        if n_log_steps is not None and self.log_on != "step":
+            raise ValueError(
+                "n_log_steps is only valid when on='step'.  If you want to to run datamaps based on steps please specify on='step'."
+            )
+        elif n_log_steps is None and self.log_on == "step":
+            warnings.warn(
+                "You have not specified n_log_steps.  This will result in a large number of datamaps being saved setting step size to 1."
+            )
+            self.n_log_steps = 1
+
+        # Create the directory if it doesn't exist.
+        if not os.path.exists(self.callback_dir):
+            os.makedirs(self.callback_dir, exist_ok=True)
+
+    def _predict(self, model, train_data_loader, args):
+        if train_data_loader.batch_size is None:
+            batch_size = args.per_device_train_batch_size
+        else:
+            batch_size = train_data_loader.batch_size
+        batches = BatchSampler(
+            SequentialSampler(train_data_loader.dataset),
+            batch_size,
+            False,
+        )
+
+        with torch.no_grad():
+            predictions = []
+            for batch in batches:
+                # Adjust the indices to include the last element because python is [)
+                start_idx, end_idx = batch[0], batch[-1] + 1
+
+                # Extract the sample from the training dataset
+                sample = train_data_loader.dataset[start_idx:end_idx]
+
+                # Make sure to apply any data collators
+                sample = train_data_loader.collate_fn(sample)
+
+                # Move all samples to the appropriate device. We only do this
+                # For args that are part of the model and the dataset.
+                args = set(inspect.getfullargspec(model.forward).args).intersection(
+                    set(sample.keys())
+                )
+                sample = {k: torch.tensor(sample[k]).to(model.device) for k in args}
+
+                # Perform inference using the model
+                current_preds = model(**sample)
+
+                # Convert the predictions to a list and append them to the result
+                predictions += current_preds.logits.tolist()
+
+        return predictions
+
+    def _save_predictions(self, model, train_data_loader, args):
+        predictions = self.prediction_fn(model, train_data_loader, args)
+
+        # Save Predictions.
+        with open(os.path.join(self.callback_dir, f"{self.log_count}.json"), "w") as f:
+            json.dump(predictions, f)
+        self.log_count += 1
+
+    def on_epoch_end(self, args, state, control, logs=None, **kwargs):
+        """Predict on all training examples at the end of an epoch."""
+
+        if self.log_on == "epoch":
+            self._save_predictions(kwargs["model"], kwargs["train_dataloader"], args)
+
+    def on_save(self, args, state, control, logs=None, **kwargs):
+        """Predict on all training examples when a checkpoint is saved"""
+        if self.log_on == "save":
+            self._save_predictions(kwargs["model"], kwargs["train_dataloader"], args)
+
+    def on_evaluate(self, args, state, control, logs=None, **kwargs):
+        """Predict on all training examples when we run an evaluation loop."""
+        if self.log_on == "evaluate":
+            self._save_predictions(kwargs["model"], kwargs["train_dataloader"], args)
+
+    def on_step_end(self, args, state, control, logs=None, **kwargs):
+        """Predict at the end of a step."""
+        if self.log_on == "step":
+            self._save_predictions(kwargs["model"], kwargs["train_dataloader"], args)
